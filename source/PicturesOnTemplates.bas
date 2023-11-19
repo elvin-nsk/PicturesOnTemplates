@@ -9,13 +9,9 @@ Attribute VB_Name = "PicturesOnTemplates"
 
 Option Explicit
 
-Public Const RELEASE As Boolean = False
+Public Const RELEASE As Boolean = True
 
 Public Const APP_NAME As String = "PicturesOnTemplates"
-
-'===============================================================================
-
-Private Const SomeConst As String = ""
 
 '===============================================================================
 
@@ -76,15 +72,4 @@ Catch:
     VBA.MsgBox VBA.Err.Description, vbCritical, "Error"
     Resume Finally
 
-End Sub
-
-'===============================================================================
-
-
-
-'===============================================================================
-' # тесты
-
-Private Sub testSomething()
-'
 End Sub

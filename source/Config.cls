@@ -5,14 +5,13 @@ END
 Attribute VB_Name = "Config"
 Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
-Attribute VB_PredeclaredId = True
+Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
 '===============================================================================
-' Config v2023.10.09
+' Config v2023.11.19
 ' хранение, загрузка и сохранение настроек
 '===============================================================================
 
-'@PredeclaredId
 Option Explicit
 
 #Const ReadOnly = False
@@ -51,10 +50,9 @@ End Sub
 '===============================================================================
 ' # Constructors
 
-Public Function Bind_() As Config
-    Set Bind_ = New Config
-    Bind_.ForceLoad
-End Function
+Private Sub Class_Initialize()
+    ForceLoad
+End Sub
 
 #If Not ReadOnly Then
 Private Sub Class_Terminate()

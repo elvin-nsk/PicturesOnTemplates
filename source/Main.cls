@@ -28,7 +28,7 @@ Private This As This
 
 Private Sub Class_Initialize()
     With This
-        Set .Cfg = Config.Bind_
+        Set .Cfg = New Config
         Set .Logger = New SimpleLogger
     End With
 End Sub
@@ -48,13 +48,13 @@ End Sub
 ' # Entry points
 
 Public Sub Prepare()
-    
     With This
         If Not CheckFoldersForPrepare Then Exit Sub
         
-        Dim TemplateFiles As Collection
-        Set TemplateFiles = GetValidImagesFromFolder(.Cfg.RawTemplatesFolder)
-        If Not CheckImagesCount(TemplateFiles, .Cfg.RawTemplatesFolder) Then Exit Sub
+        Dim RawTemplateFiles As Collection
+        Set RawTemplateFiles = GetValidImagesFromFolder(.Cfg.RawTemplatesFolder)
+        If Not CheckImagesCount(RawTemplateFiles, .Cfg.RawTemplatesFolder) Then _
+            Exit Sub
         
         Dim ImageFiles As Collection
         Set ImageFiles = GetValidImagesFromFolder(.Cfg.ImagesFolder)
@@ -63,14 +63,57 @@ Public Sub Prepare()
         Dim ImageSize As ImageSize
         ImageSize = GetImageSizeFromFile(ImageFiles(1))
         
+        Dim PBar As New ProgressBar
+        PBar.Inject ProgressBarNumeric, RawTemplateFiles.Count
+        PBar.Cancelable = True
+        
         Dim File As Variant
-        For Each File In TemplateFiles
+        For Each File In RawTemplateFiles
+            PBar.Update
             PrepareImageAndSave File, ImageSize
+            If PBar.Canceled Then Exit Sub
         Next File
     End With
 End Sub
 
 Public Sub SetOnTemplates()
+    With This
+        If Not CheckFoldersForOutput Then Exit Sub
+        
+        Dim ImageFiles As Collection
+        Set ImageFiles = GetValidImagesFromFolder(.Cfg.ImagesFolder)
+        If Not CheckImagesCount(ImageFiles, .Cfg.ImagesFolder) Then Exit Sub
+        
+        Dim TemplateFiles As Collection
+        Set TemplateFiles = _
+            GetValidTemplatesFromFolder(.Cfg.PreparedTemplatesFolder)
+        If Not _
+            CheckImagesCount(TemplateFiles, .Cfg.PreparedTemplatesFolder) Then _
+            Exit Sub
+        
+        Dim TemplateFile As Variant
+        
+        Dim PBar As New ProgressBar
+        PBar.Inject ProgressBarNumeric, ImageFiles.Count
+        PBar.Cancelable = True
+        
+        Dim Path As String
+        Dim ImageSize As ImageSize
+        Dim ImageIndex As Long
+        For ImageIndex = 1 To ImageFiles.Count
+            PBar.Update
+            For Each TemplateFile In TemplateFiles
+                SetOnTemplateAndExport _
+                    TemplateFile, ImageFiles(ImageIndex), _
+                    ImageIndex, Path, ImageSize
+            Next TemplateFile
+            FSO.CopyFile _
+                ImageFiles(ImageIndex), _
+                Path & "1-" & ImageSize.Width & "x" & ImageSize.Height _
+              & "-" & GetFormattedIndex(ImageIndex) & ".jpg"
+            If PBar.Canceled Then Exit Sub
+        Next ImageIndex
+    End With
 End Sub
 
 Public Sub Settings()
@@ -101,13 +144,17 @@ Private Sub PrepareImageAndSave( _
     Dim Frame As Shape
     Dim ExportFile As New FileSpec
     With ActiveDocument
+        .ColorContext.BlendingColorModel = clrColorModelRGB
         .ActiveLayer.Import TemplateFile
         Set Template = ActiveShape
+        ResizeImageToDocumentResolution Template
+        Template.CenterX = .ActivePage.CenterX
+        Template.CenterY = .ActivePage.CenterY
         Set Frame = _
             .ActiveLayer.CreateRectangle2( _
                 0, 0, _
-                ToDocUnits(ImageSize.Width), _
-                ToDocUnits(ImageSize.Height) _
+                PixelsToDocUnits(ImageSize.Width), _
+                PixelsToDocUnits(ImageSize.Height) _
             )
         Frame.CenterX = .ActivePage.CenterX
         Frame.CenterY = .ActivePage.CenterY
@@ -120,6 +167,60 @@ Private Sub PrepareImageAndSave( _
         ExportFile.Path = This.Cfg.PreparedTemplatesFolder
         ExportFile.Ext = "cdr"
         .SaveAs ExportFile
+        .Close
+    End With
+End Sub
+
+Private Sub SetOnTemplateAndExport( _
+                ByVal TemplateFile As String, _
+                ByVal ImageFile As String, _
+                ByVal Index As Long, _
+                ByRef outFolder As String, _
+                ByRef outImageSize As ImageSize _
+            )
+    OpenDocument TemplateFile
+    With ActiveDocument
+        
+        .ActiveLayer.Import ImageFile
+        Dim Image As Shape
+        Set Image = ActiveShape
+        Dim Frames As Collection
+        Set Frames = GetFrames()
+        Dim Frame As Shape
+        Set Frame = Frames(1)
+        Image.SetSize Frame.SizeWidth, Frame.SizeHeight
+        Image.CenterX = Frame.CenterX
+        Image.CenterY = Frame.CenterY
+        Image.OrderFrontOf Frame
+        SetFramesTransparent Frames
+        
+        outImageSize.Height = Image.Bitmap.SizeHeight
+        outImageSize.Width = Image.Bitmap.SizeWidth
+                
+        Dim File As New FileSpec
+        File.Inject TemplateFile
+        File.Ext = "jpg"
+        Dim Path As String
+        Path = _
+            This.Cfg.OutputFolder _
+          & outImageSize.Width & "x" & outImageSize.Height _
+          & "\" _
+          & GetFormattedIndex(Index)
+        File.Path = Path
+        outFolder = File.Path
+        MakePath outFolder
+        
+        Dim ExpFlt As ExportFilter
+        With _
+            .ExportBitmap( _
+                File, cdrJPEG, cdrCurrentPage, cdrRGBColorImage, , , _
+                .ResolutionX, .ResolutionX _
+            )
+            .Compression = 10
+            .Optimized = True
+            .Finish
+        End With
+        
         .Close
     End With
 End Sub
@@ -137,6 +238,28 @@ Private Function GetImageSizeFromFile(ByVal ImageFile As String) As ImageSize
     End With
     GetImageSizeFromFile = ImageSize
 End Function
+
+Private Property Get GetFrames() As Collection
+    Set GetFrames = New Collection
+    Dim Shape As Shape
+    For Each Shape In ActivePage.Shapes
+        If Shape.Type = cdrRectangleShape Then
+            GetFrames.Add Shape
+        End If
+    Next Shape
+End Property
+
+Private Sub SetFramesTransparent(ByVal Frames As Collection)
+    Dim Frame As Shape
+    For Each Frame In Frames
+        Frame.Fill.ApplyNoFill
+        Frame.Outline.SetNoOutline
+    Next Frame
+End Sub
+
+Private Property Get GetFormattedIndex(ByVal Index As Long) As String
+    GetFormattedIndex = VBA.Format$(Index, "0000000")
+End Property
 
 Private Function CheckFoldersForPrepare() As Boolean
     CheckFoldersForPrepare = True
@@ -193,6 +316,21 @@ Private Property Get GetValidImagesFromFolder( _
     Set GetValidImagesFromFolder = ValidFiles
 End Property
 
+Private Property Get GetValidTemplatesFromFolder( _
+                         ByVal Folder As String _
+                     ) As Collection
+    With FSO
+        Dim ValidFiles As New Collection
+        Dim File As File
+        For Each File In .GetFolder(Folder).Files
+            If ValidTemplateExt(File.Name) Then
+                ValidFiles.Add File
+            End If
+        Next File
+    End With
+    Set GetValidTemplatesFromFolder = ValidFiles
+End Property
+
 Private Property Get ValidImageExt(ByVal SomeFile As String) As Boolean
     Dim File As New FileSpec
     File.Inject SomeFile
@@ -203,6 +341,10 @@ Private Property Get ValidImageExt(ByVal SomeFile As String) As Boolean
     End If
 End Property
 
-Private Property Get ToDocUnits(ByVal SizeInPixels As Long) As Double
-    ToDocUnits = ConvertUnits(SizeInPixels, cdrPixel, ActiveDocument.Unit)
+Private Property Get ValidTemplateExt(ByVal SomeFile As String) As Boolean
+    Dim File As New FileSpec
+    File.Inject SomeFile
+    If File.Ext = "cdr" Then
+        ValidTemplateExt = True
+    End If
 End Property
