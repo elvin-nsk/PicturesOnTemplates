@@ -192,7 +192,8 @@ Private Sub SetOnTemplateAndExport( _
         Image.CenterX = Frame.CenterX
         Image.CenterY = Frame.CenterY
         Image.OrderFrontOf Frame
-        SetFramesTransparent Frames
+        'здесь фреймы делаются прозрачными, пока убрал
+        'SetFramesTransparent Frames
         
         outImageSize.Height = Image.Bitmap.SizeHeight
         outImageSize.Width = Image.Bitmap.SizeWidth
