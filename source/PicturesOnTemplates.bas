@@ -1,7 +1,7 @@
 Attribute VB_Name = "PicturesOnTemplates"
 '===============================================================================
 '   Макрос          : PicturesOnTemplates
-'   Версия          : 2023.11.19
+'   Версия          : 2023.11.21
 '   Сайты           : https://vk.com/elvin_macro
 '                     https://github.com/elvin-nsk
 '   Автор           : elvin-nsk (me@elvin.nsk.ru)

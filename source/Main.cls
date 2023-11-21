@@ -160,6 +160,7 @@ Private Sub PrepareImageAndSave( _
         Frame.CenterY = .ActivePage.CenterY
         Frame.OrderFrontOf Template
         Frame.Fill.ApplyUniformFill CreateRGBColor(255, 255, 255)
+        Frame.Outline.SetNoOutline
         Frame.CreateDropShadow _
             cdrDropShadowFlat, 50, 15, 0, 0, CreateRGBColor(0, 0, 0), _
             MergeMode:=cdrMergeMultiply
@@ -192,8 +193,6 @@ Private Sub SetOnTemplateAndExport( _
         Image.CenterX = Frame.CenterX
         Image.CenterY = Frame.CenterY
         Image.OrderFrontOf Frame
-        'здесь фреймы делаются прозрачными, пока убрал
-        'SetFramesTransparent Frames
         
         outImageSize.Height = Image.Bitmap.SizeHeight
         outImageSize.Width = Image.Bitmap.SizeWidth
@@ -249,14 +248,6 @@ Private Property Get GetFrames() As Collection
         End If
     Next Shape
 End Property
-
-Private Sub SetFramesTransparent(ByVal Frames As Collection)
-    Dim Frame As Shape
-    For Each Frame In Frames
-        Frame.Fill.ApplyNoFill
-        Frame.Outline.SetNoOutline
-    Next Frame
-End Sub
 
 Private Property Get GetFormattedIndex(ByVal Index As Long) As String
     GetFormattedIndex = VBA.Format$(Index, "0000000")
